@@ -1,7 +1,6 @@
-#include <iostream>
-//#include <ostream>
+#include <SDL3/SDL.h>
 
 int main(){
-    std::cout << "Hello world!" << std::endl;
+	SDL_Log("%s", "Hello World!");
     return 0;
 }
