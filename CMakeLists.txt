@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.24)
 project(volumeVulkan)
 
+# Project
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # CPM Repo
 file(
 	DOWNLOAD
@@ -10,10 +15,8 @@ file(
 )
 include(${CMAKE_CURRENT_BINARY_DIR}/cmake/CPM.cmake)
 
-# Project
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+CPMAddPackage("gh:libsdl-org/SDL#release-3.4.2")
 
-add_subdirectory(src)
+add_executable(${PROJECT_NAME} src/main.cpp)
+target_link_libraries(${PROJECT_NAME} PRIVATE SDL3::SDL3)
+target_link_options(${PROJECT_NAME} PRIVATE)
