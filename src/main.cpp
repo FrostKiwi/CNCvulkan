@@ -1,15 +1,18 @@
 #include <SDL3/SDL.h>
 
-int main(){
+struct {
 	SDL_Window *window;
+} App;
+
+int main(){
 	bool done = false;
 
 	SDL_Init(SDL_INIT_VIDEO);
 
-	SDL_CreateWindow("CNC Vulkan", 800, 600, 0);
+	App.window = SDL_CreateWindow("CNC Vulkan", 800, 600, 0);
 
-	if (window == NULL) {
-		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Could not create window: %s\n", SDL_GetError());
+	if (App.window == NULL) {
+		SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Could not create App.window: %s\n", SDL_GetError());
 		return 1;		
 	}
 
@@ -23,7 +26,7 @@ int main(){
 		}
 	}
 
-	SDL_DestroyWindow(window);
+	SDL_DestroyWindow(App.window);
 
 	SDL_Quit();
     return 0;
