@@ -15,8 +15,11 @@ file(
 )
 include(${CMAKE_CURRENT_BINARY_DIR}/cmake/CPM.cmake)
 
+# Vulkan Headers
+CPMAddPackage("gh:KhronosGroup/Vulkan-Headers#v1.4.344")
+
 CPMAddPackage("gh:libsdl-org/SDL#release-3.4.2")
 
 add_executable(${PROJECT_NAME} src/main.cpp)
-target_link_libraries(${PROJECT_NAME} PRIVATE SDL3::SDL3)
+target_link_libraries(${PROJECT_NAME} PRIVATE SDL3::SDL3 Vulkan-Headers)
 target_link_options(${PROJECT_NAME} PRIVATE)
