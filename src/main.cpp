@@ -12,7 +12,11 @@ class App {
 	std::optional<vk::raii::Context> context{};
 	std::optional<vk::raii::Instance> instance{};
 	std::optional<vk::raii::SurfaceKHR> surface{};
-
+	std::optional<vk::raii::PhysicalDevice> physicalDevice{};
+	uint32_t graphicsQueueFamilyIndex{};
+	std::optional<vk::raii::Device> device{};
+	std::optional<vk::raii::Queue> graphicsQueue{};
+	
   public:
 	App() {
 		SDL_Init(SDL_INIT_VIDEO);
@@ -30,18 +34,10 @@ class App {
 	}
 
 	void Init() {
-		vk::ApplicationInfo applicationinfo{};
-		vk::InstanceCreateInfo instanceCreateInfo{};
-
-		uint32_t extensionCount;
-		instanceCreateInfo.ppEnabledExtensionNames = SDL_Vulkan_GetInstanceExtensions(&extensionCount);
-		instanceCreateInfo.enabledExtensionCount = extensionCount;
-
-		instance.emplace(*context, instanceCreateInfo);
-
-		VkSurfaceKHR raw_surface;
-		SDL_Vulkan_CreateSurface(window.get(), **instance, nullptr, &raw_surface);
-		surface.emplace(*instance, raw_surface)
+		InitInstance();
+		InitSurface();
+		PickPhysicalDevice();
+		InitDevice();
 	}
 
 	void Run() {
@@ -51,6 +47,51 @@ class App {
 					done = true;
 			}
 		}
+	}
+
+	private:
+	void InitInstance() {
+		vk::ApplicationInfo applicationinfo{};
+		vk::InstanceCreateInfo instanceCreateInfo{};
+
+		uint32_t extensionCount;
+		instanceCreateInfo.ppEnabledExtensionNames = SDL_Vulkan_GetInstanceExtensions(&extensionCount);
+		instanceCreateInfo.enabledExtensionCount = extensionCount;
+
+		instance.emplace(*context, instanceCreateInfo);
+	}
+
+	void InitSurface() {
+		VkSurfaceKHR raw_surface;
+		SDL_Vulkan_CreateSurface(window.get(), **instance, nullptr, &raw_surface);
+		surface.emplace(*instance, raw_surface);
+	}
+
+	void PickPhysicalDevice(){
+		auto physicalDevices{instance->enumeratePhysicalDevices()};
+		physicalDevice.emplace(*instance, *physicalDevices.front());
+		auto rawDeviceName {physicalDevice->getProperties().deviceName};
+		std::string deviceName(rawDeviceName.data(), std::strlen(rawDeviceName));
+		std::println("Device: {}", deviceName);
+
+		graphicsQueueFamilyIndex = 0;
+	}
+
+	void InitDevice(){
+		vk::DeviceQueueCreateInfo queueCreateInfo{};
+		queueCreateInfo.queueFamilyIndex = graphicsQueueFamilyIndex;
+		std::array queuePriorities{1.0f};
+		queueCreateInfo.setQueuePriorities(queuePriorities);
+
+		vk::DeviceCreateInfo deviceCreateInfo{};
+		std::array queueCreateInfos{queueCreateInfo};
+		deviceCreateInfo.setQueueCreateInfos(queueCreateInfos);
+		std::array<const char * const, 1> enabledExtensions{VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+		deviceCreateInfo.setPEnabledExtensionNames(enabledExtensions);
+		
+		device.emplace(*physicalDevice, deviceCreateInfo);
+
+		graphicsQueue.emplace(*device, graphicsQueueFamilyIndex, 0);
 	}
 };
 
