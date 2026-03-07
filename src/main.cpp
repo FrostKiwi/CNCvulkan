@@ -19,12 +19,15 @@ class App {
 
 	std::optional<vk::raii::CommandPool> commandPool{};
 	std::vector<vk::raii::CommandBuffer> commandBuffers{};
+	std::vector<vk::raii::Semaphore> imageAvailableSemaphores{};
+	std::vector<vk::raii::Semaphore> renderFinishedSemaphores{};
 	std::vector<vk::raii::Fence> fences{};
 	
 	std::optional<vk::raii::SwapchainKHR> swapchain{};
 	std::vector<vk::Image> swapchainImages{};
 	vk::Extent2D swapchainExtent{};
 	vk::Format swapchainImageFormat{vk::Format::eB8G8R8A8Srgb};
+	uint32_t currentSwapchainImageIndex{};
 
   public:
 	App() {
@@ -62,7 +65,37 @@ class App {
 
 	private:
 	void Render(){
-		device->resetFences(*fences[0]);
+		vk::Fence const fence{*fences[0]};
+		device->waitForFences(fence, VK_TRUE, UINT64_MAX);
+		device->resetFences(fence);
+
+		auto [acquireResult, imageIndex] = swapchain->acquireNextImage(UINT64_MAX, imageAvailableSemaphores[0], nullptr);
+		currentSwapchainImageIndex = imageIndex;
+
+		auto const &swapchainImage{swapchainImages[imageIndex]};
+
+		vk::raii::CommandBuffer &commandBuffer{commandBuffers[0]};
+		commandBuffer.reset();
+		vk::CommandBufferBeginInfo beginInfo{};
+		beginInfo.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
+		commandBuffer.begin(beginInfo);
+		constexpr vk::ClearColorValue color{std::array{1.0f, 0.0f, 0.0f, 1.0f}};
+		commandBuffer.clearColorImage(swapchainImage, vk::ImageLayout::eUndefined, color, vk::ImageSubresourceRange{vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1});
+		commandBuffer.end();
+
+		vk::SubmitInfo submitInfo{};
+		submitInfo.setCommandBuffers(*commandBuffer);
+		submitInfo.setWaitSemaphores(*imageAvailableSemaphores[0]);
+		submitInfo.setSignalSemaphores(*renderFinishedSemaphores[0]);
+		constexpr vk::PipelineStageFlags waitStage{vk::PipelineStageFlagBits::eTransfer};
+		submitInfo.setWaitDstStageMask(waitStage);
+		graphicsQueue->submit(submitInfo, fence);
+
+		vk::PresentInfoKHR presentInfo{};
+		presentInfo.setSwapchains(**swapchain);
+		presentInfo.setImageIndices(imageIndex);
+		presentInfo.setWaitSemaphores(*renderFinishedSemaphores[0]);
+		graphicsQueue->presentKHR(presentInfo);
 	}
 
 	void HandleEvents(){
@@ -111,6 +144,10 @@ class App {
 		fenceCreateInfo.flags = vk::FenceCreateFlagBits::eSignaled;
 
 		fences.emplace_back(*device, fenceCreateInfo);
+
+		vk::SemaphoreCreateInfo semaphoreCreateInfo{};
+		imageAvailableSemaphores.emplace_back(*device, semaphoreCreateInfo);
+		renderFinishedSemaphores.emplace_back(*device, semaphoreCreateInfo);
 	}
 
 	void AllocateCommandBuffers() {
