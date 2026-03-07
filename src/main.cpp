@@ -1,10 +1,10 @@
-#define VULKAN_HPP_ENABLE_DYNAMIC_LOADER_TOOL 0
-#include <optional>
 #include <print>
+
+#define VULKAN_HPP_ENABLE_DYNAMIC_LOADER_TOOL 0
+#include <vulkan/vulkan_raii.hpp>
+
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
-#include <memory>
-#include <vulkan/vulkan_raii.hpp>
 
 class App {
 	std::unique_ptr<SDL_Window, decltype(&SDL_DestroyWindow)> window{nullptr, SDL_DestroyWindow};
@@ -16,7 +16,16 @@ class App {
 	uint32_t graphicsQueueFamilyIndex{};
 	std::optional<vk::raii::Device> device{};
 	std::optional<vk::raii::Queue> graphicsQueue{};
+
+	std::optional<vk::raii::CommandPool> commandPool{};
+	std::vector<vk::raii::CommandBuffer> commandBuffers{};
+	std::vector<vk::raii::Fence> fences{};
 	
+	std::optional<vk::raii::SwapchainKHR> swapchain{};
+	std::vector<vk::Image> swapchainImages{};
+	vk::Extent2D swapchainExtent{};
+	vk::Format swapchainImageFormat{vk::Format::eB8G8R8A8Srgb};
+
   public:
 	App() {
 		SDL_Init(SDL_INIT_VIDEO);
@@ -38,18 +47,87 @@ class App {
 		InitSurface();
 		PickPhysicalDevice();
 		InitDevice();
+		InitCommandPool();
+		AllocateCommandBuffers();
+		InitSyncObjects();
+		RecreateSwapchain();
 	}
 
 	void Run() {
 		while (!done) {
-			for (SDL_Event event; SDL_PollEvent(&event);) {
-				if (event.type == SDL_EVENT_QUIT)
-					done = true;
-			}
+			HandleEvents();
+			Render();
 		}
 	}
 
 	private:
+	void Render(){
+		device->resetFences(*fences[0]);
+	}
+
+	void HandleEvents(){
+		for (SDL_Event event; SDL_PollEvent(&event);) {
+			switch (event.type) {
+				case SDL_EVENT_QUIT:
+					done = true;
+					break;
+
+				case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:					
+					RecreateSwapchain();
+					break;
+
+				default:
+					break;
+			}
+		}
+	}
+	void RecreateSwapchain() {
+		vk::SurfaceCapabilitiesKHR surfaceCapabilities{physicalDevice->getSurfaceCapabilitiesKHR(*surface)};
+		swapchainExtent = surfaceCapabilities.currentExtent;
+
+		vk::SwapchainCreateInfoKHR swapchainCreateInfo{};
+		swapchainCreateInfo.surface = *surface;
+		swapchainCreateInfo.minImageCount = surfaceCapabilities.minImageCount + 1;
+		swapchainCreateInfo.imageFormat = swapchainImageFormat;
+		swapchainCreateInfo.imageColorSpace = vk::ColorSpaceKHR::eSrgbNonlinear; // Should be default anyways?
+		swapchainCreateInfo.imageExtent = swapchainExtent;
+		swapchainCreateInfo.imageArrayLayers = 1;
+		swapchainCreateInfo.imageUsage = vk::ImageUsageFlagBits::eColorAttachment;
+		swapchainCreateInfo.preTransform = surfaceCapabilities.currentTransform;
+		swapchainCreateInfo.compositeAlpha = vk::CompositeAlphaFlagBitsKHR::eOpaque;
+		swapchainCreateInfo.presentMode = vk::PresentModeKHR::eMailbox;
+		swapchainCreateInfo.clipped = true;
+
+		// Figure out why old swapchain handle is invalid
+		//if (swapchain.has_value())
+		//	swapchainCreateInfo.oldSwapchain = **swapchain;
+
+		swapchain.emplace(*device, swapchainCreateInfo);
+		swapchainImages = swapchain->getImages();
+	}
+
+	void InitSyncObjects() {
+		vk::FenceCreateInfo fenceCreateInfo{};
+		fenceCreateInfo.flags = vk::FenceCreateFlagBits::eSignaled;
+
+		fences.emplace_back(*device, fenceCreateInfo);
+	}
+
+	void AllocateCommandBuffers() {
+		vk::CommandBufferAllocateInfo allocateInfo{};
+		allocateInfo.commandPool = *commandPool;
+		allocateInfo.commandBufferCount = 1;
+
+		commandBuffers = device->allocateCommandBuffers(allocateInfo);
+	}
+
+	void InitCommandPool(){
+		vk::CommandPoolCreateInfo commandPoolCreateInfo{};
+		commandPoolCreateInfo.queueFamilyIndex = graphicsQueueFamilyIndex;
+		commandPoolCreateInfo.flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer;
+		commandPool.emplace(*device, commandPoolCreateInfo);
+	}
+
 	void InitInstance() {
 		vk::ApplicationInfo applicationinfo{};
 		vk::InstanceCreateInfo instanceCreateInfo{};
