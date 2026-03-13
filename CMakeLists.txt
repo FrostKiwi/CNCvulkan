@@ -25,6 +25,7 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
 endif ()
 
 add_executable(${PROJECT_NAME} src/main.cpp)
+# Disable HPP Dynamic Loader, because SDL3 already does it
+target_compile_definitions(${PROJECT_NAME} PRIVATE VULKAN_HPP_ENABLE_DYNAMIC_LOADER_TOOL=0)
 target_link_libraries(${PROJECT_NAME} PRIVATE SDL3::SDL3 Vulkan-Headers)
 target_link_options(${PROJECT_NAME} PRIVATE)
-
