@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.24)
+cmake_minimum_required(VERSION 3.30)
 project(volumeVulkan)
 
 # Project
@@ -23,7 +23,9 @@ CPMAddPackage(
 		"BUILD_SHARED_LIBS OFF" # Build Static
 )
 
-add_executable(${PROJECT_NAME} src/main.cpp)
+add_executable(${PROJECT_NAME})
+target_sources(${PROJECT_NAME} PRIVATE src/main.cpp)
+target_sources(${PROJECT_NAME} PRIVATE FILE_SET CXX_MODULES FILES src/App.cppm)
 # Disable HPP Dynamic Loader, because SDL3 already does it
 target_compile_definitions(${PROJECT_NAME} PRIVATE VULKAN_HPP_ENABLE_DYNAMIC_LOADER_TOOL=0)
 target_link_libraries(${PROJECT_NAME} PRIVATE SDL3::SDL3 Vulkan-Headers)
