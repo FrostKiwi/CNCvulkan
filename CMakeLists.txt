@@ -17,7 +17,12 @@ include(${CMAKE_CURRENT_BINARY_DIR}/cmake/CPM.cmake)
 
 # Packages
 CPMAddPackage("gh:KhronosGroup/Vulkan-Headers#v1.4.344")
-CPMAddPackage("gh:libsdl-org/SDL#release-3.4.2")
+
+CPMAddPackage(
+	URI "gh:libsdl-org/SDL#release-3.4.2"
+	OPTIONS
+		"BUILD_SHARED_LIBS OFF" # Build Static
+)
 
 # Tell Ninja to tell Clang to color the output
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
