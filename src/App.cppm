@@ -5,8 +5,27 @@ module;
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
+#include <glm/glm.hpp>
 
 export module App;
+
+template<int Length>
+	requires (Length == 3 || Length == 4)
+glm::vec<Length, float> hsv_to_rgb(glm::vec<Length, float> hsv)
+{
+	glm::vec3 rgb{
+		std::fabs(hsv.x * 6.0f - 3.0f) - 1.0f,
+		2.0f - std::fabs(hsv.x * 6.0f - 2.0f),
+		2.0f - std::fabs(hsv.x * 6.0f - 4.0f)
+	};
+	rgb = glm::clamp(rgb, 0.0f, 1.0f);
+	rgb = ((rgb - 1.0f) * hsv.y + 1.0f) * hsv.z;
+
+	if constexpr (Length == 4)
+		return glm::vec4{rgb, hsv.w};
+	else
+		return rgb;
+}
 
 export class App {
 	std::unique_ptr<SDL_Window, decltype(&SDL_DestroyWindow)> window{nullptr, SDL_DestroyWindow};
@@ -44,7 +63,9 @@ export class App {
 	}
 
 	~App() {
-		// Since the destructor runs before RAII Cleanup, we can't call SDL_Quit() here.
+		// Since the destructor runs before RAII Cleanup, we need to wait before calling SDL_Quit() here.
+		device->waitIdle();
+		SDL_Quit();
 	}
 
 	void Init() {
@@ -71,6 +92,7 @@ export class App {
 		device->waitForFences(fence, VK_TRUE, UINT64_MAX);
 		device->resetFences(fence);
 
+		// We are violating Vulkan spec here, see https://docs.vulkan.org/guide/latest/swapchain_semaphore_reuse.html
 		auto [acquireResult, imageIndex] = swapchain->acquireNextImage(UINT64_MAX, imageAvailableSemaphores[0], nullptr);
 		currentSwapchainImageIndex = imageIndex;
 
@@ -78,11 +100,35 @@ export class App {
 
 		vk::raii::CommandBuffer &commandBuffer{commandBuffers[0]};
 		commandBuffer.reset();
-		vk::CommandBufferBeginInfo beginInfo{};
-		beginInfo.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
+		const vk::CommandBufferBeginInfo beginInfo{ vk::CommandBufferUsageFlagBits::eOneTimeSubmit };
 		commandBuffer.begin(beginInfo);
-		constexpr vk::ClearColorValue color{std::array{1.0f, 0.0f, 0.0f, 1.0f}};
-		commandBuffer.clearColorImage(swapchainImage, vk::ImageLayout::eUndefined, color, vk::ImageSubresourceRange{vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1});
+
+		double time = SDL_GetTicks() * 0.001;
+		const glm::vec4 rainbow = hsv_to_rgb(glm::vec4{sin(time) * 0.5 + 0.5, 1.0f, 1.0f, 1.0f});
+		const vk::ClearColorValue color{rainbow.r, rainbow.g, rainbow.b, rainbow.a};
+
+		// transfer image layout to transfer destination
+		vk::ImageMemoryBarrier const barrier{
+			vk::AccessFlagBits::eMemoryRead, vk::AccessFlagBits::eTransferWrite,
+			vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal,
+			VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+			swapchainImage, vk::ImageSubresourceRange{
+					vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1
+			}
+		};
+		commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer, vk::DependencyFlags{}, nullptr, nullptr, barrier);
+			
+		commandBuffer.clearColorImage(swapchainImage, vk::ImageLayout::eTransferDstOptimal, color, vk::ImageSubresourceRange{vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1});
+
+		vk::ImageMemoryBarrier const barrier2{
+			vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eMemoryRead,
+			vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::ePresentSrcKHR,
+			VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+			swapchainImage, vk::ImageSubresourceRange{
+					vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1
+			}
+		};
+		commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer, vk::DependencyFlags{}, nullptr, nullptr, barrier2);
 		commandBuffer.end();
 
 		vk::SubmitInfo submitInfo{};
@@ -127,7 +173,7 @@ export class App {
 		swapchainCreateInfo.imageColorSpace = vk::ColorSpaceKHR::eSrgbNonlinear; // Should be default anyways?
 		swapchainCreateInfo.imageExtent = swapchainExtent;
 		swapchainCreateInfo.imageArrayLayers = 1;
-		swapchainCreateInfo.imageUsage = vk::ImageUsageFlagBits::eColorAttachment;
+		swapchainCreateInfo.imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferDst;
 		swapchainCreateInfo.preTransform = surfaceCapabilities.currentTransform;
 		swapchainCreateInfo.compositeAlpha = vk::CompositeAlphaFlagBitsKHR::eOpaque;
 		swapchainCreateInfo.presentMode = vk::PresentModeKHR::eMailbox;
