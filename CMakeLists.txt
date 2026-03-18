@@ -26,7 +26,7 @@ CPMAddPackage(
 
 add_executable(${PROJECT_NAME})
 target_sources(${PROJECT_NAME} PRIVATE src/main.cpp)
-target_sources(${PROJECT_NAME} PRIVATE FILE_SET CXX_MODULES FILES src/App.cppm)
+target_sources(${PROJECT_NAME} PRIVATE FILE_SET CXX_MODULES FILES src/App.cppm src/util.cppm)
 # Disable HPP Dynamic Loader, because SDL3 already does it
 target_compile_definitions(${PROJECT_NAME} PRIVATE VULKAN_HPP_ENABLE_DYNAMIC_LOADER_TOOL=0 VULKAN_HPP_NO_STRUCT_CONSTRUCTORS)
 target_link_libraries(${PROJECT_NAME} PRIVATE SDL3::SDL3 Vulkan-Headers glm::glm)
