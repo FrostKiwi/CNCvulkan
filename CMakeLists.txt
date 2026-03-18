@@ -1,4 +1,11 @@
 cmake_minimum_required(VERSION 3.30)
+
+# As per https://github.com/Kitware/CMake/blob/v4.2.3/Help/dev/experimental.rst
+# Needs a *version specific* UUID to be enabled (to be found in the link above with correct git tag)
+# Also must come before the "project" call for whatever reason. ¯\_(ツ)_/¯
+# Fingers crossed 4.4 fixes this mess https://gitlab.kitware.com/cmake/cmake/-/merge_requests/11745
+set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD d0edc3af-4c50-42ea-a356-e2862fe7a444)
+
 project(volumeVulkan)
 
 # Project
@@ -28,5 +35,5 @@ add_executable(${PROJECT_NAME})
 target_sources(${PROJECT_NAME} PRIVATE src/main.cpp)
 target_sources(${PROJECT_NAME} PRIVATE FILE_SET CXX_MODULES FILES src/App.cppm src/util.cppm)
 # Disable HPP Dynamic Loader, because SDL3 already does it
-target_compile_definitions(${PROJECT_NAME} PRIVATE VULKAN_HPP_ENABLE_DYNAMIC_LOADER_TOOL=0 VULKAN_HPP_NO_STRUCT_CONSTRUCTORS)
-target_link_libraries(${PROJECT_NAME} PRIVATE SDL3::SDL3 Vulkan-Headers glm::glm)
+target_compile_definitions(Vulkan-HppModule PRIVATE VULKAN_HPP_ENABLE_DYNAMIC_LOADER_TOOL=0 VULKAN_HPP_NO_STRUCT_CONSTRUCTORS)
+target_link_libraries(${PROJECT_NAME} PRIVATE SDL3::SDL3 Vulkan-HppModule glm::glm)

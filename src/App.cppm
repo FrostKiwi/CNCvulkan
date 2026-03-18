@@ -1,14 +1,12 @@
 module;
 
-#include <print>
-
-#include <vulkan/vulkan_raii.hpp>
-
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
 #include <glm/glm.hpp>
 
 export module App;
+
+import vulkan;
 
 import util;
 
@@ -44,7 +42,7 @@ export class App {
 		context.emplace(vkGetInstanceProcAddr);
 
 		auto const vulkanVersion{context->enumerateInstanceVersion()};
-		std::println("Vulkan {}.{}", VK_API_VERSION_MAJOR(vulkanVersion), VK_API_VERSION_MINOR(vulkanVersion));
+		std::println("Vulkan {}.{}", vk::apiVersionMajor(vulkanVersion), vk::apiVersionMinor(vulkanVersion)); 
 	}
 
 	~App() {
@@ -74,7 +72,7 @@ export class App {
   private:
 	void Render() {
 		vk::Fence const fence{*fences[0]};
-		device->waitForFences(fence, VK_TRUE, UINT64_MAX);
+		device->waitForFences(fence, true, UINT64_MAX);
 		device->resetFences(fence);
 
 		// We are violating Vulkan spec here, see https://docs.vulkan.org/guide/latest/swapchain_semaphore_reuse.html
@@ -98,8 +96,8 @@ export class App {
 			.dstAccessMask = vk::AccessFlagBits::eTransferWrite,
 			.oldLayout = vk::ImageLayout::eUndefined,
 			.newLayout = vk::ImageLayout::eTransferDstOptimal,
-			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.srcQueueFamilyIndex = vk::QueueFamilyIgnored,
+			.dstQueueFamilyIndex = vk::QueueFamilyIgnored,
 			.image = swapchainImage,
 			.subresourceRange = vk::ImageSubresourceRange{
 				.aspectMask = vk::ImageAspectFlagBits::eColor,
@@ -117,8 +115,8 @@ export class App {
 			.dstAccessMask = vk::AccessFlagBits::eMemoryRead,
 			.oldLayout = vk::ImageLayout::eTransferDstOptimal,
 			.newLayout = vk::ImageLayout::ePresentSrcKHR,
-			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.srcQueueFamilyIndex = vk::QueueFamilyIgnored,
+			.dstQueueFamilyIndex = vk::QueueFamilyIgnored,
 			.image = swapchainImage,
 			.subresourceRange = vk::ImageSubresourceRange{
 				.aspectMask = vk::ImageAspectFlagBits::eColor,
@@ -248,7 +246,7 @@ export class App {
 		vk::DeviceCreateInfo deviceCreateInfo{};
 		std::array queueCreateInfos{queueCreateInfo};
 		deviceCreateInfo.setQueueCreateInfos(queueCreateInfos);
-		std::array<const char *const, 1> enabledExtensions{VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+		std::array<const char *const, 1> enabledExtensions{vk::KHRSwapchainExtensionName};
 		deviceCreateInfo.setPEnabledExtensionNames(enabledExtensions);
 
 		device.emplace(*physicalDevice, deviceCreateInfo);
