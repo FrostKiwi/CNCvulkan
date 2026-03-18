@@ -100,7 +100,7 @@ export class App {
 
 		vk::raii::CommandBuffer &commandBuffer{commandBuffers[0]};
 		commandBuffer.reset();
-		const vk::CommandBufferBeginInfo beginInfo{ vk::CommandBufferUsageFlagBits::eOneTimeSubmit };
+		const vk::CommandBufferBeginInfo beginInfo{.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit};
 		commandBuffer.begin(beginInfo);
 
 		double time = SDL_GetTicks() * 0.001;
@@ -109,25 +109,38 @@ export class App {
 
 		// transfer image layout to transfer destination
 		vk::ImageMemoryBarrier const barrier{
-			vk::AccessFlagBits::eMemoryRead, vk::AccessFlagBits::eTransferWrite,
-			vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal,
-			VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
-			swapchainImage, vk::ImageSubresourceRange{
-					vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1
-			}
-		};
-		commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer, vk::DependencyFlags{}, nullptr, nullptr, barrier);
-			
+			.srcAccessMask = vk::AccessFlagBits::eMemoryRead,
+			.dstAccessMask = vk::AccessFlagBits::eTransferWrite,
+			.oldLayout = vk::ImageLayout::eUndefined,
+			.newLayout = vk::ImageLayout::eTransferDstOptimal,
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.image = swapchainImage,
+			.subresourceRange = vk::ImageSubresourceRange{
+				.aspectMask = vk::ImageAspectFlagBits::eColor,
+				.baseMipLevel = 0,
+				.levelCount = 1,
+				.baseArrayLayer = 0,
+				.layerCount = 1}};
+
+		commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer, vk::DependencyFlags{}, nullptr, nullptr, barrier);
+
 		commandBuffer.clearColorImage(swapchainImage, vk::ImageLayout::eTransferDstOptimal, color, vk::ImageSubresourceRange{vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1});
 
 		vk::ImageMemoryBarrier const barrier2{
-			vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eMemoryRead,
-			vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::ePresentSrcKHR,
-			VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
-			swapchainImage, vk::ImageSubresourceRange{
-					vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1
-			}
-		};
+			.srcAccessMask = vk::AccessFlagBits::eTransferWrite,
+			.dstAccessMask = vk::AccessFlagBits::eMemoryRead,
+			.oldLayout = vk::ImageLayout::eTransferDstOptimal,
+			.newLayout = vk::ImageLayout::ePresentSrcKHR,
+			.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+			.image = swapchainImage,
+			.subresourceRange = vk::ImageSubresourceRange{
+				.aspectMask = vk::ImageAspectFlagBits::eColor,
+				.baseMipLevel = 0,
+				.levelCount = 1,
+				.baseArrayLayer = 0,
+				.layerCount = 1}};
 		commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer, vk::DependencyFlags{}, nullptr, nullptr, barrier2);
 		commandBuffer.end();
 
@@ -166,18 +179,19 @@ export class App {
 		vk::SurfaceCapabilitiesKHR surfaceCapabilities{physicalDevice->getSurfaceCapabilitiesKHR(*surface)};
 		swapchainExtent = surfaceCapabilities.currentExtent;
 
-		vk::SwapchainCreateInfoKHR swapchainCreateInfo{};
-		swapchainCreateInfo.surface = *surface;
-		swapchainCreateInfo.minImageCount = surfaceCapabilities.minImageCount + 1;
-		swapchainCreateInfo.imageFormat = swapchainImageFormat;
-		swapchainCreateInfo.imageColorSpace = vk::ColorSpaceKHR::eSrgbNonlinear; // Should be default anyways?
-		swapchainCreateInfo.imageExtent = swapchainExtent;
-		swapchainCreateInfo.imageArrayLayers = 1;
-		swapchainCreateInfo.imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferDst;
-		swapchainCreateInfo.preTransform = surfaceCapabilities.currentTransform;
-		swapchainCreateInfo.compositeAlpha = vk::CompositeAlphaFlagBitsKHR::eOpaque;
-		swapchainCreateInfo.presentMode = vk::PresentModeKHR::eMailbox;
-		swapchainCreateInfo.clipped = true;
+		vk::SwapchainCreateInfoKHR swapchainCreateInfo{
+			.surface = *surface,
+			.minImageCount = surfaceCapabilities.minImageCount + 1,
+			.imageFormat = swapchainImageFormat,
+			.imageColorSpace = vk::ColorSpaceKHR::eSrgbNonlinear, // Should be default anyways?
+			.imageExtent = swapchainExtent,
+			.imageArrayLayers = 1,
+			.imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferDst,
+			.preTransform = surfaceCapabilities.currentTransform,
+			.compositeAlpha = vk::CompositeAlphaFlagBitsKHR::eOpaque,
+			.presentMode = vk::PresentModeKHR::eMailbox,
+			.clipped = true,
+		};
 
 		// Figure out why old swapchain handle is invalid
 		// if (swapchain.has_value())
