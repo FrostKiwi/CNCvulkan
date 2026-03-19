@@ -11,38 +11,38 @@ import vulkan;
 import util;
 
 export class App {
-	std::unique_ptr<SDL_Window, decltype(&SDL_DestroyWindow)> window{nullptr, SDL_DestroyWindow};
-	bool done{false};
-	std::optional<vk::raii::Context> context{};
-	std::optional<vk::raii::Instance> instance{};
-	std::optional<vk::raii::SurfaceKHR> surface{};
-	std::optional<vk::raii::PhysicalDevice> physicalDevice{};
-	uint32_t graphicsQueueFamilyIndex{};
-	std::optional<vk::raii::Device> device{};
-	std::optional<vk::raii::Queue> graphicsQueue{};
+	std::unique_ptr<SDL_Window, decltype(&SDL_DestroyWindow)> window {nullptr, SDL_DestroyWindow};
+	bool done {false};
+	std::optional<vk::raii::Context> context {};
+	std::optional<vk::raii::Instance> instance {};
+	std::optional<vk::raii::SurfaceKHR> surface {};
+	std::optional<vk::raii::PhysicalDevice> physicalDevice {};
+	uint32_t graphicsQueueFamilyIndex {};
+	std::optional<vk::raii::Device> device {};
+	std::optional<vk::raii::Queue> graphicsQueue {};
 
-	std::optional<vk::raii::CommandPool> commandPool{};
-	std::vector<vk::raii::CommandBuffer> commandBuffers{};
-	std::vector<vk::raii::Semaphore> imageAvailableSemaphores{};
-	std::vector<vk::raii::Semaphore> renderFinishedSemaphores{};
-	std::vector<vk::raii::Fence> fences{};
+	std::optional<vk::raii::CommandPool> commandPool {};
+	std::vector<vk::raii::CommandBuffer> commandBuffers {};
+	std::vector<vk::raii::Semaphore> imageAvailableSemaphores {};
+	std::vector<vk::raii::Semaphore> renderFinishedSemaphores {};
+	std::vector<vk::raii::Fence> fences {};
 
-	std::optional<vk::raii::SwapchainKHR> swapchain{};
-	std::vector<vk::Image> swapchainImages{};
-	vk::Extent2D swapchainExtent{};
-	vk::Format swapchainImageFormat{vk::Format::eB8G8R8A8Srgb};
-	uint32_t currentSwapchainImageIndex{};
+	std::optional<vk::raii::SwapchainKHR> swapchain {};
+	std::vector<vk::Image> swapchainImages {};
+	vk::Extent2D swapchainExtent {};
+	vk::Format swapchainImageFormat {vk::Format::eB8G8R8A8Srgb};
+	uint32_t currentSwapchainImageIndex {};
 
   public:
 	App() {
 		SDL_Init(SDL_INIT_VIDEO);
 		SDL_Vulkan_LoadLibrary(nullptr);
 		window.reset(SDL_CreateWindow("CNC Vulkan", 800, 600, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE));
-		auto vkGetInstanceProcAddr{reinterpret_cast<PFN_vkGetInstanceProcAddr>(SDL_Vulkan_GetVkGetInstanceProcAddr())};
+		auto vkGetInstanceProcAddr {reinterpret_cast<PFN_vkGetInstanceProcAddr>(SDL_Vulkan_GetVkGetInstanceProcAddr())};
 		context.emplace(vkGetInstanceProcAddr);
 
-		auto const vulkanVersion{context->enumerateInstanceVersion()};
-		std::println("Vulkan {}.{}", vk::apiVersionMajor(vulkanVersion), vk::apiVersionMinor(vulkanVersion)); 
+		auto const vulkanVersion {context->enumerateInstanceVersion()};
+		std::println("Vulkan {}.{}", vk::apiVersionMajor(vulkanVersion), vk::apiVersionMinor(vulkanVersion));
 	}
 
 	~App() {
@@ -71,7 +71,7 @@ export class App {
 
   private:
 	void Render() {
-		vk::Fence const fence{*fences[0]};
+		vk::Fence const fence {*fences[0]};
 		device->waitForFences(fence, true, UINT64_MAX);
 		device->resetFences(fence);
 
@@ -79,19 +79,19 @@ export class App {
 		auto [acquireResult, imageIndex] = swapchain->acquireNextImage(UINT64_MAX, imageAvailableSemaphores[0], nullptr);
 		currentSwapchainImageIndex = imageIndex;
 
-		auto const &swapchainImage{swapchainImages[imageIndex]};
+		auto const &swapchainImage {swapchainImages[imageIndex]};
 
-		vk::raii::CommandBuffer &commandBuffer{commandBuffers[0]};
+		vk::raii::CommandBuffer &commandBuffer {commandBuffers[0]};
 		commandBuffer.reset();
-		const vk::CommandBufferBeginInfo beginInfo{.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit};
+		const vk::CommandBufferBeginInfo beginInfo {.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit};
 		commandBuffer.begin(beginInfo);
 
 		double time = SDL_GetTicks() * 0.001;
-		const glm::vec4 rainbow = hsv_to_rgb(glm::vec4{sin(time) * 0.5 + 0.5, 1.0f, 1.0f, 1.0f});
-		const vk::ClearColorValue color{rainbow.r, rainbow.g, rainbow.b, rainbow.a};
+		const glm::vec4 rainbow = hsv_to_rgb(glm::vec4 {sin(time) * 0.5 + 0.5, 1.0f, 1.0f, 1.0f});
+		const vk::ClearColorValue color {rainbow.r, rainbow.g, rainbow.b, rainbow.a};
 
 		// transfer image layout to transfer destination
-		vk::ImageMemoryBarrier const barrier{
+		vk::ImageMemoryBarrier const barrier {
 			.srcAccessMask = vk::AccessFlagBits::eMemoryRead,
 			.dstAccessMask = vk::AccessFlagBits::eTransferWrite,
 			.oldLayout = vk::ImageLayout::eUndefined,
@@ -99,18 +99,20 @@ export class App {
 			.srcQueueFamilyIndex = vk::QueueFamilyIgnored,
 			.dstQueueFamilyIndex = vk::QueueFamilyIgnored,
 			.image = swapchainImage,
-			.subresourceRange = vk::ImageSubresourceRange{
+			.subresourceRange = vk::ImageSubresourceRange {
 				.aspectMask = vk::ImageAspectFlagBits::eColor,
 				.baseMipLevel = 0,
 				.levelCount = 1,
 				.baseArrayLayer = 0,
-				.layerCount = 1}};
+				.layerCount = 1
+			}
+		};
 
-		commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer, vk::DependencyFlags{}, nullptr, nullptr, barrier);
+		commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer, vk::DependencyFlags {}, nullptr, nullptr, barrier);
 
-		commandBuffer.clearColorImage(swapchainImage, vk::ImageLayout::eTransferDstOptimal, color, vk::ImageSubresourceRange{vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1});
+		commandBuffer.clearColorImage(swapchainImage, vk::ImageLayout::eTransferDstOptimal, color, vk::ImageSubresourceRange {vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1});
 
-		vk::ImageMemoryBarrier const barrier2{
+		vk::ImageMemoryBarrier const barrier2 {
 			.srcAccessMask = vk::AccessFlagBits::eTransferWrite,
 			.dstAccessMask = vk::AccessFlagBits::eMemoryRead,
 			.oldLayout = vk::ImageLayout::eTransferDstOptimal,
@@ -118,24 +120,26 @@ export class App {
 			.srcQueueFamilyIndex = vk::QueueFamilyIgnored,
 			.dstQueueFamilyIndex = vk::QueueFamilyIgnored,
 			.image = swapchainImage,
-			.subresourceRange = vk::ImageSubresourceRange{
+			.subresourceRange = vk::ImageSubresourceRange {
 				.aspectMask = vk::ImageAspectFlagBits::eColor,
 				.baseMipLevel = 0,
 				.levelCount = 1,
 				.baseArrayLayer = 0,
-				.layerCount = 1}};
-		commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer, vk::DependencyFlags{}, nullptr, nullptr, barrier2);
+				.layerCount = 1
+			}
+		};
+		commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer, vk::DependencyFlags {}, nullptr, nullptr, barrier2);
 		commandBuffer.end();
 
-		vk::SubmitInfo submitInfo{};
+		vk::SubmitInfo submitInfo {};
 		submitInfo.setCommandBuffers(*commandBuffer);
 		submitInfo.setWaitSemaphores(*imageAvailableSemaphores[0]);
 		submitInfo.setSignalSemaphores(*renderFinishedSemaphores[0]);
-		constexpr vk::PipelineStageFlags waitStage{vk::PipelineStageFlagBits::eTransfer};
+		constexpr vk::PipelineStageFlags waitStage {vk::PipelineStageFlagBits::eTransfer};
 		submitInfo.setWaitDstStageMask(waitStage);
 		graphicsQueue->submit(submitInfo, fence);
 
-		vk::PresentInfoKHR presentInfo{};
+		vk::PresentInfoKHR presentInfo {};
 		presentInfo.setSwapchains(**swapchain);
 		presentInfo.setImageIndices(imageIndex);
 		presentInfo.setWaitSemaphores(*renderFinishedSemaphores[0]);
@@ -159,10 +163,10 @@ export class App {
 		}
 	}
 	void RecreateSwapchain() {
-		vk::SurfaceCapabilitiesKHR surfaceCapabilities{physicalDevice->getSurfaceCapabilitiesKHR(*surface)};
+		vk::SurfaceCapabilitiesKHR surfaceCapabilities {physicalDevice->getSurfaceCapabilitiesKHR(*surface)};
 		swapchainExtent = surfaceCapabilities.currentExtent;
 
-		vk::SwapchainCreateInfoKHR swapchainCreateInfo{
+		vk::SwapchainCreateInfoKHR swapchainCreateInfo {
 			.surface = *surface,
 			.minImageCount = surfaceCapabilities.minImageCount + 1,
 			.imageFormat = swapchainImageFormat,
@@ -185,18 +189,18 @@ export class App {
 	}
 
 	void InitSyncObjects() {
-		vk::FenceCreateInfo fenceCreateInfo{};
+		vk::FenceCreateInfo fenceCreateInfo {};
 		fenceCreateInfo.flags = vk::FenceCreateFlagBits::eSignaled;
 
 		fences.emplace_back(*device, fenceCreateInfo);
 
-		vk::SemaphoreCreateInfo semaphoreCreateInfo{};
+		vk::SemaphoreCreateInfo semaphoreCreateInfo {};
 		imageAvailableSemaphores.emplace_back(*device, semaphoreCreateInfo);
 		renderFinishedSemaphores.emplace_back(*device, semaphoreCreateInfo);
 	}
 
 	void AllocateCommandBuffers() {
-		vk::CommandBufferAllocateInfo allocateInfo{};
+		vk::CommandBufferAllocateInfo allocateInfo {};
 		allocateInfo.commandPool = *commandPool;
 		allocateInfo.commandBufferCount = 1;
 
@@ -204,15 +208,15 @@ export class App {
 	}
 
 	void InitCommandPool() {
-		vk::CommandPoolCreateInfo commandPoolCreateInfo{};
+		vk::CommandPoolCreateInfo commandPoolCreateInfo {};
 		commandPoolCreateInfo.queueFamilyIndex = graphicsQueueFamilyIndex;
 		commandPoolCreateInfo.flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer;
 		commandPool.emplace(*device, commandPoolCreateInfo);
 	}
 
 	void InitInstance() {
-		vk::ApplicationInfo applicationinfo{};
-		vk::InstanceCreateInfo instanceCreateInfo{};
+		vk::ApplicationInfo applicationinfo {};
+		vk::InstanceCreateInfo instanceCreateInfo {};
 
 		uint32_t extensionCount;
 		instanceCreateInfo.ppEnabledExtensionNames = SDL_Vulkan_GetInstanceExtensions(&extensionCount);
@@ -228,9 +232,9 @@ export class App {
 	}
 
 	void PickPhysicalDevice() {
-		auto physicalDevices{instance->enumeratePhysicalDevices()};
+		auto physicalDevices {instance->enumeratePhysicalDevices()};
 		physicalDevice.emplace(*instance, *physicalDevices.front());
-		auto rawDeviceName{physicalDevice->getProperties().deviceName};
+		auto rawDeviceName {physicalDevice->getProperties().deviceName};
 		std::string deviceName(rawDeviceName.data(), std::strlen(rawDeviceName));
 		std::println("Device: {}", deviceName);
 
@@ -238,15 +242,15 @@ export class App {
 	}
 
 	void InitDevice() {
-		vk::DeviceQueueCreateInfo queueCreateInfo{};
+		vk::DeviceQueueCreateInfo queueCreateInfo {};
 		queueCreateInfo.queueFamilyIndex = graphicsQueueFamilyIndex;
-		std::array queuePriorities{1.0f};
+		std::array queuePriorities {1.0f};
 		queueCreateInfo.setQueuePriorities(queuePriorities);
 
-		vk::DeviceCreateInfo deviceCreateInfo{};
-		std::array queueCreateInfos{queueCreateInfo};
+		vk::DeviceCreateInfo deviceCreateInfo {};
+		std::array queueCreateInfos {queueCreateInfo};
 		deviceCreateInfo.setQueueCreateInfos(queueCreateInfos);
-		std::array<const char *const, 1> enabledExtensions{vk::KHRSwapchainExtensionName};
+		std::array<const char *const, 1> enabledExtensions {vk::KHRSwapchainExtensionName};
 		deviceCreateInfo.setPEnabledExtensionNames(enabledExtensions);
 
 		device.emplace(*physicalDevice, deviceCreateInfo);

@@ -7,3 +7,6 @@ ColumnLimit: 0
 
 AllowShortFunctionsOnASingleLine: None
 AllowShortBlocksOnASingleLine: Never
+Cpp11BracedListStyle: true
+SpaceBeforeCpp11BracedList: true
+BreakBeforeCloseBracketBracedList: true
