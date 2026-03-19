@@ -24,6 +24,10 @@ CPMAddPackage("gh:g-truc/glm#1.0.3")
 CPMAddPackage( URI "gh:libsdl-org/SDL#release-3.4.2"
 	OPTIONS
 		"BUILD_SHARED_LIBS OFF" # Build Static
+		"SDL_RENDER OFF" # Remove SDL's renderer
+		"SDL_GPU OFF" # Remove SDL's renderer
+		"SDL_JOYSTICK OFF" # Disable Joystick subsystem
+		"SDL_HAPTIC OFF" # Disale Joystick subsystem
 )
 
 add_executable(${PROJECT_NAME} src/main.cpp)
