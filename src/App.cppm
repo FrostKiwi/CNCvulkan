@@ -10,6 +10,16 @@ import vulkan;
 
 import util;
 
+struct Frame {
+	vk::raii::CommandBuffer commandBuffer;
+	vk::raii::Semaphore imageAvailableSemaphore;
+	vk::raii::Semaphore renderFinishedSemaphore;
+	vk::raii::Fence fence;
+};
+
+// 1 would be "CPU waits for GPU", n would be "CPU is n-1 Frames ahead"
+constexpr uint32_t IN_FLIGHT_FRAME_COUNT {2};
+
 export class App {
 	std::unique_ptr<SDL_Window, decltype(&SDL_DestroyWindow)> window {nullptr, SDL_DestroyWindow};
 	bool done {false};
@@ -22,10 +32,8 @@ export class App {
 	std::optional<vk::raii::Queue> graphicsQueue {};
 
 	std::optional<vk::raii::CommandPool> commandPool {};
-	std::vector<vk::raii::CommandBuffer> commandBuffers {};
-	std::vector<vk::raii::Semaphore> imageAvailableSemaphores {};
-	std::vector<vk::raii::Semaphore> renderFinishedSemaphores {};
-	std::vector<vk::raii::Fence> fences {};
+	std::array<std::optional<Frame>, IN_FLIGHT_FRAME_COUNT> frames {};
+	uint32_t frameIndex {0};
 
 	std::optional<vk::raii::SwapchainKHR> swapchain {};
 	std::vector<vk::Image> swapchainImages {};
@@ -71,8 +79,8 @@ export class App {
 
   private:
 	void Render() {
-		vk::Fence const fence {*fences[0]};
-		device->waitForFences(fence, true, UINT64_MAX);
+		auto const frame & {*frames[frameIndex]};
+		device->waitForFences(frame.fence, true, UINT64_MAX);
 		device->resetFences(fence);
 
 		// We are violating Vulkan spec here, see https://docs.vulkan.org/guide/latest/swapchain_semaphore_reuse.html
@@ -144,6 +152,8 @@ export class App {
 		presentInfo.setImageIndices(imageIndex);
 		presentInfo.setWaitSemaphores(*renderFinishedSemaphores[0]);
 		graphicsQueue->presentKHR(presentInfo);
+
+		frameIndex = (frameIndex + 1) % IN_FLIGHT_FRAME_COUNT;
 	}
 
 	void HandleEvents() {
