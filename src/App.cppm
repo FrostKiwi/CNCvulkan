@@ -65,8 +65,7 @@ export class App {
 		PickPhysicalDevice();
 		InitDevice();
 		InitCommandPool();
-		AllocateCommandBuffers();
-		InitSyncObjects();
+		InitFrames();
 		RecreateSwapchain();
 	}
 
@@ -78,18 +77,7 @@ export class App {
 	}
 
   private:
-	void Render() {
-		auto const frame & {*frames[frameIndex]};
-		device->waitForFences(frame.fence, true, UINT64_MAX);
-		device->resetFences(fence);
-
-		// We are violating Vulkan spec here, see https://docs.vulkan.org/guide/latest/swapchain_semaphore_reuse.html
-		auto [acquireResult, imageIndex] = swapchain->acquireNextImage(UINT64_MAX, imageAvailableSemaphores[0], nullptr);
-		currentSwapchainImageIndex = imageIndex;
-
-		auto const &swapchainImage {swapchainImages[imageIndex]};
-
-		vk::raii::CommandBuffer &commandBuffer {commandBuffers[0]};
+	void RecordCommandBuffer(vk::raii::CommandBuffer const &commandBuffer, vk::Image const &swapchainImage) {
 		commandBuffer.reset();
 		const vk::CommandBufferBeginInfo beginInfo {.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit};
 		commandBuffer.begin(beginInfo);
@@ -138,22 +126,44 @@ export class App {
 		};
 		commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer, vk::DependencyFlags {}, nullptr, nullptr, barrier2);
 		commandBuffer.end();
+	}
 
-		vk::SubmitInfo submitInfo {};
-		submitInfo.setCommandBuffers(*commandBuffer);
-		submitInfo.setWaitSemaphores(*imageAvailableSemaphores[0]);
-		submitInfo.setSignalSemaphores(*renderFinishedSemaphores[0]);
-		constexpr vk::PipelineStageFlags waitStage {vk::PipelineStageFlagBits::eTransfer};
-		submitInfo.setWaitDstStageMask(waitStage);
-		graphicsQueue->submit(submitInfo, fence);
+	void BeginFrame(Frame const &frame) {
+		device->waitForFences(*frame.fence, true, UINT64_MAX);
+		device->resetFences(*frame.fence);
 
+		// We are violating Vulkan spec here, see https://docs.vulkan.org/guide/latest/swapchain_semaphore_reuse.html
+		auto [acquireResult, imageIndex] = swapchain->acquireNextImage(UINT64_MAX, *frame.imageAvailableSemaphore, nullptr);
+		currentSwapchainImageIndex = imageIndex;
+	}
+
+	void EndFrame(Frame const &frame) {
 		vk::PresentInfoKHR presentInfo {};
 		presentInfo.setSwapchains(**swapchain);
-		presentInfo.setImageIndices(imageIndex);
-		presentInfo.setWaitSemaphores(*renderFinishedSemaphores[0]);
+		presentInfo.setImageIndices(currentSwapchainImageIndex);
+		presentInfo.setWaitSemaphores(*frame.renderFinishedSemaphore);
 		graphicsQueue->presentKHR(presentInfo);
 
 		frameIndex = (frameIndex + 1) % IN_FLIGHT_FRAME_COUNT;
+	}
+
+	void SubmitCommandBuffer(Frame const &frame) {
+		vk::SubmitInfo submitInfo {};
+		submitInfo.setCommandBuffers(*frame.commandBuffer);
+		submitInfo.setWaitSemaphores(*frame.imageAvailableSemaphore);
+		submitInfo.setSignalSemaphores(*frame.renderFinishedSemaphore);
+		constexpr vk::PipelineStageFlags waitStage {vk::PipelineStageFlagBits::eTransfer};
+		submitInfo.setWaitDstStageMask(waitStage);
+		graphicsQueue->submit(submitInfo, frame.fence);
+	}
+
+	void Render() {
+		Frame const &frame {*frames[frameIndex]};
+
+		BeginFrame(frame);
+		RecordCommandBuffer(frame.commandBuffer, swapchainImages[currentSwapchainImageIndex]);
+		SubmitCommandBuffer(frame);
+		EndFrame(frame);
 	}
 
 	void HandleEvents() {
@@ -198,23 +208,20 @@ export class App {
 		swapchainImages = swapchain->getImages();
 	}
 
-	void InitSyncObjects() {
-		vk::FenceCreateInfo fenceCreateInfo {};
-		fenceCreateInfo.flags = vk::FenceCreateFlagBits::eSignaled;
+	void InitFrames() {
+		vk::CommandBufferAllocateInfo commandBufferAllocateInfo {
+			.commandPool = *commandPool,
+			.level = vk::CommandBufferLevel::ePrimary,
+			.commandBufferCount = IN_FLIGHT_FRAME_COUNT
+		};
+		auto commandBuffers {device->allocateCommandBuffers(commandBufferAllocateInfo)};
 
-		fences.emplace_back(*device, fenceCreateInfo);
-
-		vk::SemaphoreCreateInfo semaphoreCreateInfo {};
-		imageAvailableSemaphores.emplace_back(*device, semaphoreCreateInfo);
-		renderFinishedSemaphores.emplace_back(*device, semaphoreCreateInfo);
-	}
-
-	void AllocateCommandBuffers() {
-		vk::CommandBufferAllocateInfo allocateInfo {};
-		allocateInfo.commandPool = *commandPool;
-		allocateInfo.commandBufferCount = 1;
-
-		commandBuffers = device->allocateCommandBuffers(allocateInfo);
+		for (size_t i = 0; i < IN_FLIGHT_FRAME_COUNT; i++)
+			frames[i].emplace(
+				std::move(commandBuffers[i]),
+				vk::raii::Semaphore {*device, vk::SemaphoreCreateInfo {}},
+				vk::raii::Semaphore {*device, vk::SemaphoreCreateInfo {}},
+				vk::raii::Fence {*device, vk::FenceCreateInfo {.flags = vk::FenceCreateFlagBits::eSignaled}});
 	}
 
 	void InitCommandPool() {
