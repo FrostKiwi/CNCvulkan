@@ -56,6 +56,8 @@ export class App {
 	~App() {
 		// Since the destructor runs before RAII Cleanup, we need to wait before calling SDL_Quit() here.
 		device->waitIdle();
+		// SDL Pulls out the context from underneath vk cleanup, so this all segfaults here on exit
+		// This doesn't work with RAII, gotta move it out of the class
 		SDL_Quit();
 	}
 
