@@ -33,7 +33,7 @@ export class App {
 
 	std::optional<vk::raii::CommandPool> commandPool {};
 	std::array<std::optional<Frame>, IN_FLIGHT_FRAME_COUNT> frames {};
-	uint32_t frameIndex {0};
+	uint32_t frameIndex {};
 
 	std::optional<vk::raii::SwapchainKHR> swapchain {};
 	std::vector<vk::Image> swapchainImages {};
@@ -77,7 +77,56 @@ export class App {
 	}
 
   private:
-	void RecordCommandBuffer(vk::raii::CommandBuffer const &commandBuffer, vk::Image const &swapchainImage) {
+	struct ImageLayout {
+		vk::ImageLayout imageLayout {};
+		vk::PipelineStageFlags2 stageMask {};
+		vk::AccessFlags2 accessMask {};
+		uint32_t queueFamilyIndex {vk::QueueFamilyIgnored};
+	};
+
+	// Unneeded, but to read https://themaister.net/blog/2019/08/14/yet-another-blog-explaining-vulkan-synchronization/
+	// vs Vulkan13 sync2
+	static void TransitionImageLayoutOld(vk::raii::CommandBuffer const &commandBuffer, vk::Image const &image) {
+		vk::ImageMemoryBarrier const barrier {
+			.srcAccessMask = vk::AccessFlagBits::eMemoryRead,
+			.dstAccessMask = vk::AccessFlagBits::eTransferWrite,
+			.oldLayout = vk::ImageLayout::eUndefined,
+			.newLayout = vk::ImageLayout::eTransferDstOptimal,
+			.srcQueueFamilyIndex = vk::QueueFamilyIgnored,
+			.dstQueueFamilyIndex = vk::QueueFamilyIgnored,
+			.image = image,
+			.subresourceRange = vk::ImageSubresourceRange {
+				.aspectMask = vk::ImageAspectFlagBits::eColor,
+				.baseMipLevel = 0,
+				.levelCount = 1,
+				.baseArrayLayer = 0,
+				.layerCount = 1
+			}
+		};
+	}
+
+	static void TransitionImageLayout(vk::raii::CommandBuffer const &commandBuffer, vk::Image const &image,
+									  ImageLayout const &oldLayout, ImageLayout const &newLayout) {
+		vk::ImageMemoryBarrier2 const barrier {
+			.srcStageMask = oldLayout.stageMask,
+			.srcAccessMask = oldLayout.accessMask,
+			.dstStageMask = newLayout.stageMask,
+			.dstAccessMask = newLayout.accessMask,
+			.oldLayout = oldLayout.imageLayout,
+			.newLayout = newLayout.imageLayout,
+			.srcQueueFamilyIndex = oldLayout.queueFamilyIndex,
+			.dstQueueFamilyIndex = newLayout.queueFamilyIndex,
+			.image = image,
+			.subresourceRange = vk::ImageSubresourceRange {
+				vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1
+			}
+		};
+		vk::DependencyInfo dependencyInfo {};
+		dependencyInfo.setImageMemoryBarriers(barrier);
+		commandBuffer.pipelineBarrier2(dependencyInfo);
+	}
+
+	static void RecordCommandBuffer(vk::raii::CommandBuffer const &commandBuffer, vk::Image const &swapchainImage) {
 		commandBuffer.reset();
 		const vk::CommandBufferBeginInfo beginInfo {.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit};
 		commandBuffer.begin(beginInfo);
@@ -86,45 +135,32 @@ export class App {
 		const glm::vec4 rainbow = hsv_to_rgb(glm::vec4 {sin(time) * 0.5 + 0.5, 1.0f, 1.0f, 1.0f});
 		const vk::ClearColorValue color {rainbow.r, rainbow.g, rainbow.b, rainbow.a};
 
-		// transfer image layout to transfer destination
-		vk::ImageMemoryBarrier const barrier {
-			.srcAccessMask = vk::AccessFlagBits::eMemoryRead,
-			.dstAccessMask = vk::AccessFlagBits::eTransferWrite,
-			.oldLayout = vk::ImageLayout::eUndefined,
-			.newLayout = vk::ImageLayout::eTransferDstOptimal,
-			.srcQueueFamilyIndex = vk::QueueFamilyIgnored,
-			.dstQueueFamilyIndex = vk::QueueFamilyIgnored,
-			.image = swapchainImage,
-			.subresourceRange = vk::ImageSubresourceRange {
-				.aspectMask = vk::ImageAspectFlagBits::eColor,
-				.baseMipLevel = 0,
-				.levelCount = 1,
-				.baseArrayLayer = 0,
-				.layerCount = 1
-			}
-		};
-
-		commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eTransfer, vk::DependencyFlags {}, nullptr, nullptr, barrier);
+		TransitionImageLayout(commandBuffer, swapchainImage,
+							  ImageLayout {
+								  .imageLayout = vk::ImageLayout::eUndefined,
+								  .stageMask = vk::PipelineStageFlagBits2::eTransfer,
+								  .accessMask = vk::AccessFlagBits2::eMemoryRead
+							  },
+							  ImageLayout {
+								  .imageLayout = vk::ImageLayout::eTransferDstOptimal,
+								  .stageMask = vk::PipelineStageFlagBits2::eTransfer,
+								  .accessMask = vk::AccessFlagBits2::eTransferWrite
+							  });
 
 		commandBuffer.clearColorImage(swapchainImage, vk::ImageLayout::eTransferDstOptimal, color, vk::ImageSubresourceRange {vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1});
 
-		vk::ImageMemoryBarrier const barrier2 {
-			.srcAccessMask = vk::AccessFlagBits::eTransferWrite,
-			.dstAccessMask = vk::AccessFlagBits::eMemoryRead,
-			.oldLayout = vk::ImageLayout::eTransferDstOptimal,
-			.newLayout = vk::ImageLayout::ePresentSrcKHR,
-			.srcQueueFamilyIndex = vk::QueueFamilyIgnored,
-			.dstQueueFamilyIndex = vk::QueueFamilyIgnored,
-			.image = swapchainImage,
-			.subresourceRange = vk::ImageSubresourceRange {
-				.aspectMask = vk::ImageAspectFlagBits::eColor,
-				.baseMipLevel = 0,
-				.levelCount = 1,
-				.baseArrayLayer = 0,
-				.layerCount = 1
-			}
-		};
-		commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer, vk::DependencyFlags {}, nullptr, nullptr, barrier2);
+		TransitionImageLayout(commandBuffer, swapchainImage,
+							  ImageLayout {
+								  .imageLayout = vk::ImageLayout::eTransferDstOptimal,
+								  .stageMask = vk::PipelineStageFlagBits2::eTransfer,
+								  .accessMask = vk::AccessFlagBits2::eTransferWrite,
+							  },
+							  ImageLayout {
+								  .imageLayout = vk::ImageLayout::ePresentSrcKHR,
+								  .stageMask = vk::PipelineStageFlagBits2::eTransfer,
+								  .accessMask = vk::AccessFlagBits2::eMemoryRead
+							  });
+
 		commandBuffer.end();
 	}
 
@@ -146,7 +182,6 @@ export class App {
 
 		frameIndex = (frameIndex + 1) % IN_FLIGHT_FRAME_COUNT;
 	}
-
 	void SubmitCommandBuffer(Frame const &frame) {
 		vk::SubmitInfo submitInfo {};
 		submitInfo.setCommandBuffers(*frame.commandBuffer);
@@ -232,8 +267,9 @@ export class App {
 	}
 
 	void InitInstance() {
-		vk::ApplicationInfo applicationinfo {};
-		vk::InstanceCreateInfo instanceCreateInfo {};
+		constexpr auto vulkanVersion {vk::makeApiVersion(0, 1, 4, 0)};
+		vk::ApplicationInfo applicationinfo {.apiVersion = vulkanVersion};
+		vk::InstanceCreateInfo instanceCreateInfo {.pApplicationInfo = &applicationinfo};
 
 		uint32_t extensionCount;
 		instanceCreateInfo.ppEnabledExtensionNames = SDL_Vulkan_GetInstanceExtensions(&extensionCount);
@@ -270,7 +306,10 @@ export class App {
 		std::array<const char *const, 1> enabledExtensions {vk::KHRSwapchainExtensionName};
 		deviceCreateInfo.setPEnabledExtensionNames(enabledExtensions);
 
-		device.emplace(*physicalDevice, deviceCreateInfo);
+		vk::PhysicalDeviceVulkan13Features vulkan13Features {.synchronization2 = true};
+		vk::StructureChain chain {deviceCreateInfo, vulkan13Features};
+
+		device.emplace(*physicalDevice, chain.get<vk::DeviceCreateInfo>());
 
 		graphicsQueue.emplace(*device, graphicsQueueFamilyIndex, 0);
 	}
