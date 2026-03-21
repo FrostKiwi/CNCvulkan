@@ -14,6 +14,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_COLOR_DIAGNOSTICS ON)
 
+# SDL family all need Shared vs Static to be in sync, so I set it here:
+set(BUILD_SHARED_LIBS OFF)
+
 # Enable the CPM Package Manager
 file( DOWNLOAD https://github.com/cpm-cmake/CPM.cmake/releases/download/v0.42.1/CPM.cmake ${CMAKE_CURRENT_BINARY_DIR}/cmake/CPM.cmake )
 include(${CMAKE_CURRENT_BINARY_DIR}/cmake/CPM.cmake)
@@ -23,12 +26,12 @@ CPMAddPackage("gh:KhronosGroup/Vulkan-Headers#v1.4.346")
 CPMAddPackage("gh:g-truc/glm#1.0.3")
 CPMAddPackage( URI "gh:libsdl-org/SDL#release-3.4.2"
 	OPTIONS
-		"BUILD_SHARED_LIBS OFF" # Build Static
 		"SDL_RENDER OFF" # Remove SDL's renderer
 		"SDL_GPU OFF" # Remove SDL's renderer
 		"SDL_JOYSTICK OFF" # Disable Joystick subsystem
 		"SDL_HAPTIC OFF" # Disale Joystick subsystem
 )
+CPMAddPackage("gh:libsdl-org/SDL_image#release-3.4.0")
 
 add_executable(${PROJECT_NAME} src/main.cpp)
 file(GLOB_RECURSE Modules CONFIGURE_DEPENDS src/*.cppm)
@@ -38,4 +41,4 @@ target_compile_definitions(Vulkan-HppModule PRIVATE
 	VULKAN_HPP_ENABLE_DYNAMIC_LOADER_TOOL=0 # Disable HPP Dynamic Loader, because SDL3 already does it
 	VULKAN_HPP_NO_STRUCT_CONSTRUCTORS # Enable designated initializers
 )
-target_link_libraries(${PROJECT_NAME} PRIVATE SDL3::SDL3 Vulkan-HppModule glm::glm)
+target_link_libraries(${PROJECT_NAME} PRIVATE SDL3::SDL3 SDL3_image::SDL3_image Vulkan-HppModule glm::glm)
