@@ -2,7 +2,13 @@ module;
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
+#include <SDL3_image/SDL_image.h>
 #include <glm/glm.hpp>
+
+// Stick with simple VMA, but switch to VMA HPP RAII, once it's time
+#define VMA_STATIC_VULKAN_FUNCTIONS 0
+#define VMA_DYNAMIC_VULKAN_FUNCTIONS 1
+#include "vk_mem_alloc.h"
 
 export module App;
 
@@ -30,6 +36,7 @@ export class App {
 	uint32_t graphicsQueueFamilyIndex {};
 	std::optional<vk::raii::Device> device {};
 	std::optional<vk::raii::Queue> graphicsQueue {};
+	std::unique_ptr<VmaAllocator_T, decltype(&vmaDestroyAllocator)> allocator {nullptr, vmaDestroyAllocator};
 
 	std::optional<vk::raii::CommandPool> commandPool {};
 	std::array<std::optional<Frame>, IN_FLIGHT_FRAME_COUNT> frames {};
@@ -40,6 +47,8 @@ export class App {
 	vk::Extent2D swapchainExtent {};
 	vk::Format swapchainImageFormat {vk::Format::eB8G8R8A8Srgb};
 	uint32_t currentSwapchainImageIndex {};
+
+	static constexpr auto vulkanVersion {vk::makeApiVersion(0, 1, 4, 0)};
 
   public:
 	App() {
@@ -66,9 +75,62 @@ export class App {
 		InitSurface();
 		PickPhysicalDevice();
 		InitDevice();
+		InitVMAAllocator();
 		InitCommandPool();
 		InitFrames();
 		RecreateSwapchain();
+
+		// Make this load via #embed instead later on
+		auto const image {IMG_Load("assets/matcap/basic_side_diffuse.png")};
+		if (!image)
+			throw;
+
+		if (image->format != SDL_PIXELFORMAT_ABGR8888)
+			throw;
+
+		// Staging buffer, naivly assuming 8bpp 4 Channels
+		vk::BufferCreateInfo bufferCreateInfo {
+			.size = (vk::DeviceSize)(image->w * image->h * 4),
+			.usage = vk::BufferUsageFlagBits::eTransferSrc
+		};
+		VmaAllocationCreateInfo allocationCreateInfo {
+			.usage = VMA_MEMORY_USAGE_CPU_ONLY
+		};
+		VmaAllocation stagingBufferAllocation;
+		VkBuffer stagingBuffer {};
+		vmaCreateBuffer(allocator.get(), bufferCreateInfo, &allocationCreateInfo, &stagingBuffer, &stagingBufferAllocation, nullptr);
+
+		void *mappedData;
+		vmaMapMemory(allocator.get(), stagingBufferAllocation, &mappedData);
+		std::memcpy(mappedData, image->pixels, bufferCreateInfo.size);
+		vmaUnmapMemory(allocator.get(), stagingBufferAllocation);
+
+		// Create Image
+		vk::ImageCreateInfo imageCreateInfo {
+			.imageType = vk::ImageType::e2D,
+			.format = vk::Format::eR8G8B8A8Unorm,
+			.extent = vk::Extent3D {
+				.width = (uint32_t)(image->w),
+				.height = (uint32_t)(image->h),
+				.depth = 1
+			},
+			.mipLevels = 1,
+			.arrayLayers = 1,
+			.samples = vk::SampleCountFlagBits::e1,
+			.tiling = vk::ImageTiling::eOptimal,
+			.usage = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eTransferDst,
+			.initialLayout = vk::ImageLayout::eUndefined
+		};
+		VmaAllocation imageAllocation;
+		VkImage vkImage;
+		VmaAllocationCreateInfo imageAllocationCreateInfo{
+			.usage = VMA_MEMORY_USAGE_GPU_ONLY
+		};
+		auto const rawImageCreateInfo{static_cast<VkImageCreateInfo>(imageCreateInfo)};
+		if(vmaCreateImage(allocator.get(), &rawImageCreateInfo, &imageAllocationCreateInfo, &vkImage, &imageAllocation, nullptr) != VK_SUCCESS)
+			throw;
+
+		
 	}
 
 	void Run() {
@@ -79,6 +141,24 @@ export class App {
 	}
 
   private:
+	void InitVMAAllocator() {
+		VmaVulkanFunctions const functions {
+			.vkGetInstanceProcAddr = instance->getDispatcher()->vkGetInstanceProcAddr,
+			.vkGetDeviceProcAddr = device->getDispatcher()->vkGetDeviceProcAddr
+		};
+
+		VmaAllocatorCreateInfo allocatorCreateInfo {
+			.physicalDevice = **physicalDevice,
+			.device = **device,
+			.pVulkanFunctions = &functions,
+			.instance = **instance,
+			.vulkanApiVersion = vulkanVersion
+		};
+		VmaAllocator vmaAllocator;
+		vmaCreateAllocator(&allocatorCreateInfo, &vmaAllocator);
+		allocator.reset(vmaAllocator);
+	};
+
 	struct ImageLayout {
 		vk::ImageLayout imageLayout {};
 		vk::PipelineStageFlags2 stageMask {};
@@ -269,7 +349,6 @@ export class App {
 	}
 
 	void InitInstance() {
-		constexpr auto vulkanVersion {vk::makeApiVersion(0, 1, 4, 0)};
 		vk::ApplicationInfo applicationinfo {.apiVersion = vulkanVersion};
 		vk::InstanceCreateInfo instanceCreateInfo {.pApplicationInfo = &applicationinfo};
 

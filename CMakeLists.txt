@@ -9,7 +9,7 @@ set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD d0edc3af-4c50-42ea-a356-e2862fe7a444)
 project(volumeVulkan)
 
 # Project
-set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD 26)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_COLOR_DIAGNOSTICS ON)
@@ -40,7 +40,7 @@ CPMAddPackage( URI "gh:libsdl-org/SDL#release-3.4.2"
 )
 CPMAddPackage("gh:libsdl-org/SDL_image#release-3.4.0")
 
-add_executable(${PROJECT_NAME} src/main.cpp)
+add_executable(${PROJECT_NAME} src/main.cpp src/VMA.cpp)
 file(GLOB_RECURSE Modules CONFIGURE_DEPENDS src/*.cppm)
 target_sources(${PROJECT_NAME} PRIVATE FILE_SET CXX_MODULES FILES ${Modules})
 
