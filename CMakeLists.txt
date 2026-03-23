@@ -48,4 +48,9 @@ target_compile_definitions(Vulkan-HppModule PRIVATE
 	VULKAN_HPP_ENABLE_DYNAMIC_LOADER_TOOL=0 # Disable HPP Dynamic Loader, because SDL3 already does it
 	VULKAN_HPP_NO_STRUCT_CONSTRUCTORS # Enable designated initializers
 )
+target_compile_definitions(${PROJECT_NAME} PUBLIC SDL_MAIN_USE_CALLBACKS)
 target_link_libraries(${PROJECT_NAME} PRIVATE SDL3::SDL3 SDL3_image::SDL3_image Vulkan-HppModule VulkanMemoryAllocator glm::glm)
+
+## Assets Folder, for as long as I don't use #embed
+add_custom_target(copy_assets COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_LIST_DIR}/assets ${CMAKE_CURRENT_BINARY_DIR}/assets)
+add_dependencies(${PROJECT_NAME} copy_assets)

@@ -4,4 +4,5 @@ Checks: >
   clang-analyzer-*,
   modernize-*,
   readability-*,
+  -readability-braces-around-statements,
   misc-*,
