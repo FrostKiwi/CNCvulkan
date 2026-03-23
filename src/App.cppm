@@ -48,6 +48,10 @@ export class App {
 	vk::Format swapchainImageFormat {vk::Format::eB8G8R8A8Srgb};
 	uint32_t currentSwapchainImageIndex {};
 
+	std::optional<vk::raii::Image> texture;
+	uint32_t textureWidth {};
+	uint32_t textureHeight {};
+
 	static constexpr auto vulkanVersion {vk::makeApiVersion(0, 1, 4, 0)};
 
   public:
@@ -88,6 +92,9 @@ export class App {
 		if (image->format != SDL_PIXELFORMAT_ABGR8888)
 			throw;
 
+		textureWidth = image->w;
+		textureHeight = image->h;
+
 		// Staging buffer, naivly assuming 8bpp 4 Channels
 		vk::BufferCreateInfo bufferCreateInfo {
 			.size = (vk::DeviceSize)(image->w * image->h * 4),
@@ -108,7 +115,7 @@ export class App {
 		// Create Image
 		vk::ImageCreateInfo imageCreateInfo {
 			.imageType = vk::ImageType::e2D,
-			.format = vk::Format::eR8G8B8A8Unorm,
+			.format = vk::Format::eR8G8B8A8Srgb,
 			.extent = vk::Extent3D {
 				.width = (uint32_t)(image->w),
 				.height = (uint32_t)(image->h),
@@ -123,14 +130,66 @@ export class App {
 		};
 		VmaAllocation imageAllocation;
 		VkImage vkImage;
-		VmaAllocationCreateInfo imageAllocationCreateInfo{
+		VmaAllocationCreateInfo imageAllocationCreateInfo {
 			.usage = VMA_MEMORY_USAGE_GPU_ONLY
 		};
-		auto const rawImageCreateInfo{static_cast<VkImageCreateInfo>(imageCreateInfo)};
-		if(vmaCreateImage(allocator.get(), &rawImageCreateInfo, &imageAllocationCreateInfo, &vkImage, &imageAllocation, nullptr) != VK_SUCCESS)
+		auto const rawImageCreateInfo {static_cast<VkImageCreateInfo>(imageCreateInfo)};
+		if (vmaCreateImage(allocator.get(), &rawImageCreateInfo, &imageAllocationCreateInfo, &vkImage, &imageAllocation, nullptr) != VK_SUCCESS)
 			throw;
 
-		
+		auto const &frame {*frames[0]};
+		vk::CommandBufferBeginInfo beginInfo {
+			.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit
+		};
+
+		frame.commandBuffer.begin(beginInfo);
+		TransitionImageLayout(frame.commandBuffer, vkImage,
+							  ImageLayout {
+								  vk::ImageLayout::eUndefined,
+								  vk::PipelineStageFlagBits2::eNone,
+								  vk::AccessFlagBits2::eNone
+							  },
+							  ImageLayout {
+								  vk::ImageLayout::eTransferDstOptimal,
+								  vk::PipelineStageFlagBits2::eTransfer,
+								  vk::AccessFlagBits2::eTransferWrite
+							  });
+		frame.commandBuffer.copyBufferToImage(stagingBuffer, vkImage, vk::ImageLayout::eTransferDstOptimal,
+											  vk::BufferImageCopy {
+												  .bufferOffset = 0,
+												  .bufferRowLength = 0,
+												  .bufferImageHeight = 0,
+												  .imageSubresource = vk::ImageSubresourceLayers {
+													  vk::ImageAspectFlagBits::eColor, 0, 0, 1
+												  },
+												  .imageOffset = vk::Offset3D {0, 0, 0},
+												  .imageExtent = vk::Extent3D {(uint32_t)(image->w), (uint32_t)(image->h), 1}
+											  });
+		TransitionImageLayout(frame.commandBuffer, vkImage,
+							  ImageLayout {
+								  vk::ImageLayout::eTransferDstOptimal,
+								  vk::PipelineStageFlagBits2::eTransfer,
+								  vk::AccessFlagBits2::eTransferWrite
+							  },
+							  ImageLayout {
+								  vk::ImageLayout::eTransferDstOptimal,
+								  vk::PipelineStageFlagBits2::eTransfer,
+								  vk::AccessFlagBits2::eTransferRead
+							  });
+		frame.commandBuffer.end();
+		device->resetFences(*frame.fence);
+		vk::SubmitInfo submitInfo {};
+		submitInfo.setCommandBuffers(*frame.commandBuffer);
+		graphicsQueue->submit(submitInfo, frame.fence);
+
+		SDL_DestroySurface(image);
+		device->waitForFences(*frame.fence, true, UINT64_MAX);
+
+		// cleanup
+		vmaDestroyBuffer(allocator.get(), stagingBuffer, stagingBufferAllocation);
+		frame.commandBuffer.reset();
+
+		texture.emplace(*device, vkImage);
 	}
 
 	void Run() {
@@ -208,7 +267,7 @@ export class App {
 		commandBuffer.pipelineBarrier2(dependencyInfo);
 	}
 
-	static void RecordCommandBuffer(vk::raii::CommandBuffer const &commandBuffer, vk::Image const &swapchainImage) {
+	void RecordCommandBuffer(vk::raii::CommandBuffer const &commandBuffer, vk::Image const &swapchainImage) {
 		commandBuffer.reset();
 		const vk::CommandBufferBeginInfo beginInfo {.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit};
 		commandBuffer.begin(beginInfo);
@@ -230,6 +289,27 @@ export class App {
 							  });
 
 		commandBuffer.clearColorImage(swapchainImage, vk::ImageLayout::eTransferDstOptimal, color, vk::ImageSubresourceRange {vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1});
+		//
+		// blit texture to swapchain image
+		std::array srcOffsets {
+			vk::Offset3D {0, 0, 0},
+			vk::Offset3D {(int32_t)textureWidth, (int32_t)textureHeight, 1}
+		};
+		std::array dstOffsets {
+			vk::Offset3D {0, 0, 0},
+			vk::Offset3D {(int32_t)swapchainExtent.width, (int32_t)swapchainExtent.height, 1}
+		};
+
+		commandBuffer.blitImage(**texture, vk::ImageLayout::eTransferSrcOptimal, swapchainImage, vk::ImageLayout::eTransferDstOptimal,
+								vk::ImageBlit {
+									.srcSubresource = vk::ImageSubresourceLayers {
+										vk::ImageAspectFlagBits::eColor, 0, 0, 1
+									},
+									.srcOffsets = srcOffsets,
+									.dstSubresource = vk::ImageSubresourceLayers {vk::ImageAspectFlagBits::eColor, 0, 0, 1},
+									.dstOffsets = dstOffsets
+								},
+								vk::Filter::eLinear);
 
 		TransitionImageLayout(commandBuffer, swapchainImage,
 							  ImageLayout {
