@@ -41,7 +41,7 @@ CPMAddPackage( URI "gh:libsdl-org/SDL#release-3.4.2"
 )
 CPMAddPackage("gh:libsdl-org/SDL_image#release-3.4.0")
 
-add_executable(${PROJECT_NAME} src/main.cpp src/VMA.cpp)
+add_executable(${PROJECT_NAME} src/SDL.cpp src/VMA.cpp)
 file(GLOB_RECURSE Modules CONFIGURE_DEPENDS src/*.cppm)
 target_sources(${PROJECT_NAME} PRIVATE FILE_SET CXX_MODULES FILES ${Modules})
 
