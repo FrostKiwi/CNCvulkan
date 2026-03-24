@@ -1,8 +1,12 @@
 Checks: >
   -*,
+
   bugprone-*,
   clang-analyzer-*,
+  misc-*,
   modernize-*,
+
   readability-*,
   -readability-braces-around-statements,
-  misc-*,
+  -readability-magic-numbers,
+  -readability-uppercase-literal-suffix,
