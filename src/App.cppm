@@ -4,6 +4,7 @@ module;
 export module App;
 import std;
 import window;
+import GPU;
 
 export class App {
   public:
@@ -12,6 +13,7 @@ export class App {
 
 	auto Init() -> SDL_AppResult {
 		window.emplace();
+		gpu.emplace(*window);
 		return SDL_APP_CONTINUE;
 	}
 
@@ -33,4 +35,5 @@ export class App {
 
   private:
 	std::optional<Window> window;
+	std::optional<GPU> gpu;
 };

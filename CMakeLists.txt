@@ -46,7 +46,6 @@ file(GLOB_RECURSE Modules CONFIGURE_DEPENDS src/*.cppm)
 target_sources(${PROJECT_NAME} PRIVATE FILE_SET CXX_MODULES FILES ${Modules})
 
 target_compile_definitions(Vulkan-HppModule PRIVATE
-	VULKAN_HPP_ENABLE_DYNAMIC_LOADER_TOOL=0 # Disable HPP Dynamic Loader, because SDL3 already does it
 	VULKAN_HPP_NO_STRUCT_CONSTRUCTORS # Enable designated initializers
 )
 target_compile_definitions(${PROJECT_NAME} PUBLIC SDL_MAIN_USE_CALLBACKS)

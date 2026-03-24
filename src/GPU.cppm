@@ -6,6 +6,22 @@ import std;
 
 export class GPU {
 
+  public:
+	GPU(Window &window) : instance(makeInstance(context, window.GetInstanceRequiredExtensions())) {
+		auto physical_device_and_queue_family = selectPhysicalDevice(instance);
+
+		if (!physical_device_and_queue_family)
+			throw std::runtime_error("No suitable physical device");
+
+		physicalDevice.emplace(physical_device_and_queue_family->first);
+		queueFamilyIndex = physical_device_and_queue_family->second;
+
+		std::array requiredExtensions = {
+			VK_KHR_SWAPCHAIN_EXTENSION_NAME
+		};
+		device.emplace()
+	}
+
   private:
 	vk::raii::Context context;
 	vk::raii::Instance instance;
@@ -28,14 +44,14 @@ export class GPU {
 		auto physicalDevices {instance.enumeratePhysicalDevices()};
 
 		for (auto physicalDevice : physicalDevices) {
-			std::println("Device: {}", physicalDevice.getProperties().deviceName);
+			std::println("Device: {}", physicalDevice.getProperties().deviceName.data());
 		}
 
 		// Hard code graphics queue Family for now
+		[[deprecated("Hard coded PhysicalDevice choice and Family")]]
 		std::uint32_t graphicsQueueFamilyIndex = 0;
 
 		// Optional unused for now, just return first device for now
 		return {{physicalDevices.front(), graphicsQueueFamilyIndex}};
 	}
-
 };
