@@ -26,7 +26,6 @@ include(${CMAKE_CURRENT_BINARY_DIR}/cmake/CPM.cmake)
 
 ## Vulkan
 CPMAddPackage("gh:KhronosGroup/Vulkan-Headers#v1.4.346")
-CPMAddPackage("gh:GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator#v3.3.0")
 
 ## Util
 CPMAddPackage("gh:g-truc/glm#1.0.3")
@@ -41,7 +40,7 @@ CPMAddPackage( URI "gh:libsdl-org/SDL#release-3.4.2"
 )
 CPMAddPackage("gh:libsdl-org/SDL_image#release-3.4.0")
 
-add_executable(${PROJECT_NAME} src/SDL.cpp src/VMA.cpp)
+add_executable(${PROJECT_NAME} src/SDL.cpp)
 file(GLOB_RECURSE Modules CONFIGURE_DEPENDS src/*.cppm)
 target_sources(${PROJECT_NAME} PRIVATE FILE_SET CXX_MODULES FILES ${Modules})
 
@@ -49,7 +48,7 @@ target_compile_definitions(Vulkan-HppModule PRIVATE
 	VULKAN_HPP_NO_STRUCT_CONSTRUCTORS # Enable designated initializers
 )
 target_compile_definitions(${PROJECT_NAME} PUBLIC SDL_MAIN_USE_CALLBACKS)
-target_link_libraries(${PROJECT_NAME} PRIVATE SDL3::SDL3 SDL3_image::SDL3_image Vulkan-HppModule VulkanMemoryAllocator glm::glm)
+target_link_libraries(${PROJECT_NAME} PRIVATE SDL3::SDL3 SDL3_image::SDL3_image Vulkan-HppModule glm::glm)
 
 ## Assets Folder, for as long as I don't use #embed
 add_custom_target(copy_assets COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_LIST_DIR}/assets ${CMAKE_CURRENT_BINARY_DIR}/assets)
