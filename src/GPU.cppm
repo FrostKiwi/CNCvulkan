@@ -16,10 +16,21 @@ export class GPU {
 		physicalDevice.emplace(physical_device_and_queue_family->first);
 		queueFamilyIndex = physical_device_and_queue_family->second;
 
-		std::array requiredExtensions = {
-			VK_KHR_SWAPCHAIN_EXTENSION_NAME
+		float priority = 1.0f;
+		vk::DeviceQueueCreateInfo deviceQueueCreateInfo {
+			.queueFamilyIndex = queueFamilyIndex,
 		};
-		device.emplace()
+		deviceQueueCreateInfo.setQueueFamilyIndex(queueFamilyIndex);
+		deviceQueueCreateInfo.setQueuePriorities(priority);
+
+		std::array requiredExtensions = {
+			vk::KHRSwapchainExtensionName
+		};
+		vk::DeviceCreateInfo deviceCreateInfo {};
+		deviceCreateInfo.setPEnabledExtensionNames(requiredExtensions);
+
+		device.emplace(*physicalDevice, deviceCreateInfo);
+		queue.emplace(*device, queueFamilyIndex, 0);
 	}
 
   private:
