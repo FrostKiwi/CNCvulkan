@@ -1,6 +1,7 @@
 export module GPU;
 
 import vulkan;
+import window;
 import std;
 
 export class GPU {
@@ -15,5 +16,26 @@ export class GPU {
 	std::optional<vk::raii::Queue> queue;
 
 	auto makeInstance(vk::raii::Context &context, std::span<const char *const> requiredExtensions) -> vk::raii::Instance {
+		vk::ApplicationInfo applicationinfo {.apiVersion = vk::ApiVersion14};
+		vk::InstanceCreateInfo instanceCreateInfo {.pApplicationInfo = &applicationinfo};
+		instanceCreateInfo.setPEnabledExtensionNames(requiredExtensions);
+
+		vk::raii::Instance instance {context, instanceCreateInfo};
+		return instance;
 	}
+
+	auto selectPhysicalDevice(vk::raii::Instance &instance) -> std::optional<std::pair<vk::raii::PhysicalDevice, std::uint32_t>> {
+		auto physicalDevices {instance.enumeratePhysicalDevices()};
+
+		for (auto physicalDevice : physicalDevices) {
+			std::println("Device: {}", physicalDevice.getProperties().deviceName);
+		}
+
+		// Hard code graphics queue Family for now
+		std::uint32_t graphicsQueueFamilyIndex = 0;
+
+		// Optional unused for now, just return first device for now
+		return {{physicalDevices.front(), graphicsQueueFamilyIndex}};
+	}
+
 };
