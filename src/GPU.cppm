@@ -46,6 +46,40 @@ export class GPU {
 		return {*physicalDevice, *device, surface, size};
 	}
 
+	auto createSemaphore() -> vk::raii::Semaphore {
+		return {*device, vk::SemaphoreCreateInfo {}};
+	}
+
+	auto createFence() -> vk::raii::Fence {
+		return {
+			*device,
+			vk::FenceCreateInfo {
+				.flags = vk::FenceCreateFlagBits::eSignaled
+			}
+		};
+	}
+
+	auto createCommandPool(uint32_t queueFamilyIndex) -> vk::raii::CommandPool {
+		return {
+			*device,
+			vk::CommandPoolCreateInfo {
+
+				.flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer | vk::CommandPoolCreateFlagBits::eTransient,
+				.queueFamilyIndex = queueFamilyIndex
+			}
+		};
+	}
+
+	auto allocateCommandBuffer(vk::raii::CommandPool &commandPool, uint32_t commandBufferCount) -> vk::raii::CommandBuffers {
+		return {
+			*device,
+			vk::CommandBufferAllocateInfo {
+				.commandPool = commandPool,
+				.commandBufferCount = commandBufferCount
+			}
+		};
+	}
+
   private:
 	vk::raii::Context context;
 	vk::raii::Instance instance;

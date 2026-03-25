@@ -1,7 +1,7 @@
-#include <SDL3/SDL_main.h>
-
 import std;
 import App;
+
+#include <SDL3/SDL_main.h>
 
 auto SDL_AppInit(void **appstate, int argc, char **argv) -> SDL_AppResult {
 	auto app = std::make_unique<App>();
