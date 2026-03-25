@@ -47,6 +47,7 @@ target_sources(${PROJECT_NAME} PRIVATE FILE_SET CXX_MODULES FILES ${Modules})
 target_compile_definitions(Vulkan-HppModule PRIVATE
 	VULKAN_HPP_NO_STRUCT_CONSTRUCTORS # Enable designated initializers
 )
+target_compile_options(${PROJECT_NAME} PRIVATE -Wall)
 target_compile_definitions(${PROJECT_NAME} PUBLIC SDL_MAIN_USE_CALLBACKS)
 target_link_libraries(${PROJECT_NAME} PRIVATE SDL3::SDL3 SDL3_image::SDL3_image Vulkan-HppModule glm::glm)
 

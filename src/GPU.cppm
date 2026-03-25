@@ -1,8 +1,12 @@
+module;
+#include <glm/vec2.hpp>
+
 export module GPU;
 
 import vulkan;
 import window;
 import std;
+import swapchain;
 
 export class GPU {
 
@@ -28,9 +32,18 @@ export class GPU {
 		};
 		vk::DeviceCreateInfo deviceCreateInfo {};
 		deviceCreateInfo.setPEnabledExtensionNames(requiredExtensions);
+		deviceCreateInfo.setQueueCreateInfos(deviceQueueCreateInfo);
 
 		device.emplace(*physicalDevice, deviceCreateInfo);
 		queue.emplace(*device, queueFamilyIndex, 0);
+	}
+
+	auto createSurface(Window &window) -> vk::raii::SurfaceKHR {
+		return window.CreateSurface(instance);
+	}
+
+	auto createSwapchain(vk::raii::SurfaceKHR &surface, glm::ivec2 size) -> Swapchain {
+		return {*physicalDevice, *device, surface, size};
 	}
 
   private:
